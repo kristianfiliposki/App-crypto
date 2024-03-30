@@ -1,56 +1,47 @@
-// Importa le librerie necessarie
-const axios = require('axios'); // Per effettuare richieste HTTP
-const fs = require('fs'); // Per interagire con il file system
+const axios = require('axios');
+const fs = require('fs');
 
-// Nome del file CSV dove memorizzare i prezzi
-const CSV_FILE = 'crypto_prices.csv';
+const CSV_FILE = 'crypto_prices.csv'; // Name of the CSV file
 
 async function getPrices() {
- try {
-   // Lista dei simboli delle criptovalute da recuperare
-   const symbols = ['BTCUSDT', 'ETHUSDT'];
+  try {
+    const symbols = ['BTCUSDT', 'ETHUSDT'];
+    const endpoint = 'https://api.binance.com/api/v3/ticker/price';
 
-   // Endpoint dell'API Binance per ottenere i prezzi
-   const endpoint = 'https://api.binance.com/api/v3/ticker/price';
+    const responses = await Promise.all(
+      symbols.map((symbol) => axios.get(endpoint, { params: { symbol } }))
+    );
 
-   // Invia richieste simultanee per ottenere i prezzi delle criptovalute
-   const responses = await Promise.all(
-     symbols.map((symbol) => axios.get(endpoint, { params: { symbol } }))
-   );
+    const prices = {};
+    responses.forEach((response) => {
+      const price = parseFloat(response.data.price);
+      const symbol = response.config.params.symbol;
+      prices[symbol] = price;
+    });
 
-   // Salva i prezzi in un oggetto
-   const prices = {};
-   responses.forEach((response) => {
-     const price = parseFloat(response.data.price);
-     const symbol = response.config.params.symbol;
-     prices[symbol] = price;
-   });
+    // Append prices to existing CSV data (if the file exists)
+    let csvData;
+    try {
+      csvData = fs.readFileSync(CSV_FILE, 'utf8'); // Read existing data
+    } catch (err) {
+      // If file doesn't exist, create a header row
+      csvData = '';
+    }
 
-   // Aggiungi i nuovi prezzi al file CSV esistente (se esiste)
-   let csvData;
-   try {
-     csvData = fs.readFileSync(CSV_FILE, 'utf8'); // Leggi i dati esistenti
-   } catch (err) {
-     // Se il file non esiste, crea una riga di intestazione vuota
-     csvData = '';
-   }
+    const newCsvData = Object.entries(prices)
+      .map(([symbol, price]) => `${symbol},${price}`)
+      .join('\n');
 
-   // Converti i nuovi prezzi in formato CSV
-   const newCsvData = Object.entries(prices)
-     .map(([symbol, price]) => `<span class="math-inline">\{symbol\},</span>{price}`)
-     .join('\n');
+    // Append new data with a newline character
+    csvData += newCsvData ? `\n${newCsvData}` : newCsvData;
 
-   // Aggiungi i nuovi dati al file CSV esistente
-   csvData += newCsvData ? `\n${newCsvData}` : newCsvData;
+    fs.writeFileSync(CSV_FILE, csvData);
 
-   // Scrivi i dati aggiornati nel file CSV
-   fs.writeFileSync(CSV_FILE, csvData);
-
-   console.log('Dati salvati in crypto_prices.csv');
- } catch (error) {
-   console.error('Errore durante il recupero dei prezzi:', error.message);
- }
+    console.log('Dati salvati in crypto_prices.csv');
+  } catch (error) {
+    console.error('Errore durante il recupero dei prezzi:', error.message);
+  }
 }
 
-// Esegui la funzione `getPrices` ogni 5 secondi
-setInterval(getPrices, 2*1000);
+// Esegui la funzione ogni 5 secondi
+setInterval(getPrices, 5000);
